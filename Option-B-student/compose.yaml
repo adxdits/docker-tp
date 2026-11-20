@@ -1,0 +1,61 @@
+services:
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    networks:
+      - web_net
+    depends_on:
+      - api
+
+  api:
+    build: ./backend
+    environment:
+      DB_HOST: mysql
+      DB_NAME: energy_lab
+      DB_USER: energy_user
+      DB_PASSWORD_FILE: /run/secrets/mysql_user_password
+    secrets:
+      - mysql_user_password
+    networks:
+      - web_net
+      - data_net
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: energy_lab
+      MYSQL_USER: energy_user
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_user_password
+    secrets:
+      - mysql_root_password
+      - mysql_user_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - data_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+networks:
+  web_net:
+  data_net:
+    internal: true
+
+volumes:
+  mysql_data:
+
+secrets:
+  mysql_root_password:
+    file: ./secrets/mysql-root-password.txt
+  mysql_user_password:
+    file: ./secrets/mysql-user-password.txt
